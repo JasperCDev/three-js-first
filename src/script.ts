@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as dat from 'dat.gui';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import TileGroup from './tileGroup';
 
 function init() {
 	const scene = new THREE.Scene();
@@ -12,7 +13,7 @@ function init() {
 		scene.fog = new THREE.FogExp2(0xffffff, 0.2);
 	}
 
-	const boxGrid = getBoxGrid(10, 2);
+	const boxGrid = new TileGroup(45, 1.02);
 	const plane = getPlane(50);
 	const spotLight = getSpotLight(1);
 	const sphere = getSphere(0.05);
@@ -29,7 +30,7 @@ function init() {
 	gui.add(spotLight.position, 'z', -5, 20);
 	gui.add(spotLight, 'penumbra', 0, 1);
 
-	scene.add(boxGrid);
+	scene.add(boxGrid.tilesGroup);
 	scene.add(plane);
 	scene.add(spotLight);
 	spotLight.add(sphere);
@@ -53,56 +54,39 @@ function init() {
 	renderer.setClearColor('rgb(120, 120, 120)');
 	document.getElementById('webgl')!.appendChild(renderer.domElement);
 
+	window.addEventListener('resize', () => {
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	});
+
 	const controls = new OrbitControls(camera, renderer.domElement);
+
+	var raycaster = new THREE.Raycaster();
+	var mouse = new THREE.Vector2();
+
+	window.addEventListener('click', (e) => clickHandler(e, mouse, raycaster, camera, boxGrid), false);
   update(renderer, scene, camera, controls);
 
 	return scene;
 }
 
-function getBox(w: number, h: number, d: number) {
-	const geometry = new THREE.BoxGeometry(w, h, d);
-	const material = new THREE.MeshPhongMaterial({
-		color: 'rgb(120, 120, 120)'
-	});
-	const mesh = new THREE.Mesh(
-		geometry,
-		material
-	);
-	mesh.castShadow = true;
+function clickHandler(e: MouseEvent, mouse: THREE.Vector2, raycaster: THREE.Raycaster, camera: THREE.PerspectiveCamera, boxGrid: TileGroup) {
+	mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+	mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
-	return mesh;
-}
-
-function getBoxGrid(
-	amount: number,
-	seperationMulitiplier: number
-): THREE.Group {
-	const group = new THREE.Group();
-
-	for (let i = 0; i < amount; i++) {
-		const obj = getBox(1, 1, 1);
-		obj.position.x = i * seperationMulitiplier;
-		obj.position.y = obj.geometry.parameters.height / 2;
-		group.add(obj);
-		for (let j = 1; j < amount; j++) {
-			const obj = getBox(1, 1, 1);
-			obj.position.x = i * seperationMulitiplier;
-			obj.position.y = obj.geometry.parameters.height / 2;
-			obj.position.z = j * seperationMulitiplier;
-			group.add(obj);
-		}
-	}
-
-	group.position.x = -(seperationMulitiplier * (amount - 1)) / 2;
-	group.position.z = -(seperationMulitiplier * (amount - 1)) / 2;
-
-	return group;
+	raycaster.setFromCamera(mouse, camera);
+	const [clickedObj] = raycaster.intersectObjects(scene.children, true);
+	console.log(clickedObj.object);
+	if (clickedObj.object.name === 'tile') {
+		const tile = boxGrid.tiles[clickedObj.object.uuid];
+		tile.isActive = !tile.active;
+		tile.mesh.material.color.set(tile.active ? 0x00e366 : 0x634a32);
+	};
 }
 
 function getPlane(size: number) {
 	const geometry = new THREE.PlaneGeometry(size, size);
 	const material = new THREE.MeshPhongMaterial({
-		color: 'rgb(120, 120, 120)',
+		color: 0x946f4d,
 		side: THREE.DoubleSide
 	});
 	const mesh = new THREE.Mesh(
@@ -128,6 +112,7 @@ function getSpotLight(intensity: number) {
 	light.shadow.bias = 0.001;
 	light.shadow.mapSize.width = 2048;
 	light.shadow.mapSize.height = 2048;
+	light.position.x = 6;
 
 	return light;
 }
@@ -148,12 +133,13 @@ function update(
 	renderer: THREE.WebGLRenderer,
 	scene: THREE.Scene,
 	camera: THREE.PerspectiveCamera,
-	controls: OrbitControls
+	controls: OrbitControls,
 ) {
   renderer.render(
     scene,
     camera
 	);
+
 
 	controls.update();
 
